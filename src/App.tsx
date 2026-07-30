@@ -68,6 +68,7 @@ export function App() {
           <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页" className="flex items-center gap-3">
             <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-7 w-auto" />
             <span className="text-sm font-medium tracking-[-0.02em] text-white/65">why</span>
+            <span className="hidden text-sm text-white/40 sm:inline">为什么涨，为什么跌。</span>
           </a>
           <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">US · HK</span>
         </header>
@@ -77,7 +78,7 @@ export function App() {
             <p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">{symbol ? "标的档案" : "市场扫描"}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">{symbol ?? "今日异动"}</h1>
           </div>
-          <p className="hidden whitespace-nowrap text-right text-sm text-white/50 sm:block">把异动原因说清楚。</p>
+          <p className="hidden whitespace-nowrap text-right text-sm text-white/50 sm:block">每一次异动，都值得被解释。</p>
         </section>
 
         {status === "loading" && <SkeletonDashboard />}
