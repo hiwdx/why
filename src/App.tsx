@@ -65,7 +65,9 @@ export function App() {
     <main className="flex min-h-[100dvh] overflow-x-hidden bg-[#101110] px-4 py-4 text-[#f3f5f1] selection:bg-[#00c2b3]/30 sm:px-6 sm:py-6">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-white/10 pb-4">
-          <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页" className="text-xl font-medium tracking-[-0.04em] text-white">why<span className="text-[#00c2b3]">.</span></a>
+          <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页">
+            <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-8 w-auto" />
+          </a>
           <span className="text-sm text-white/55">解释股票异动</span>
         </header>
 
@@ -80,9 +82,9 @@ export function App() {
         {status === "error" && <ErrorState />}
         {status === "ready" && alert && <Dashboard alert={alert} history={history.length ? history : [alert]} />}
 
-        <footer className="mt-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 pt-4 text-xs text-white/45">
-          <span>© 2026 hiwd</span>
-          <span>内容仅作信息整理，不构成投资建议。</span>
+        <footer className="mt-auto border-t border-white/10 pt-4 text-center text-xs leading-5 text-white/45">
+          <div className="mb-1">由 hiwd 自动整理</div>
+          <div>© 2026 <a className="text-[#62ddd4]" href="https://hiwd.com/">hiwd</a> · All rights reserved.</div>
         </footer>
       </div>
     </main>
