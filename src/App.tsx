@@ -77,7 +77,7 @@ export function App() {
             <p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">{symbol ? "标的档案" : "市场扫描"}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">{symbol ?? "今日异动"}</h1>
           </div>
-          <p className="hidden max-w-xs text-right text-sm leading-6 text-white/50 sm:block">将价格、成交与资讯整理成一条可快速判断的原因。</p>
+          <p className="hidden whitespace-nowrap text-right text-sm text-white/50 sm:block">把异动原因说清楚。</p>
         </section>
 
         {status === "loading" && <SkeletonDashboard />}
