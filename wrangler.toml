@@ -1,0 +1,20 @@
+name = "why-hiwd-api"
+main = "src/worker.ts"
+compatibility_date = "2026-07-30"
+compatibility_flags = ["nodejs_compat"]
+
+# Worker Cron 使用 UTC。此处每 15 分钟巡检一次。
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[kv_namespaces]]
+binding = "WHY_DATA"
+id = "REPLACE_WITH_WHY_DATA_NAMESPACE_ID"
+
+[vars]
+MARKET_DATA_MODE = "mock"
+# 短期热点以逗号分隔，例如 "TICKER_A,TICKER_B"。留空时仅扫描核心池。
+HOT_TICKERS = ""
+
+[observability]
+enabled = true

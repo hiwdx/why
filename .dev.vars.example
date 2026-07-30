@@ -1,0 +1,5 @@
+# 仅用于 `wrangler dev`。不要提交实际密钥。
+DEEPSEEK_API_KEY=replace_with_your_deepseek_key
+FINNHUB_API_KEY=replace_with_your_finnhub_key
+# 以英文逗号分隔。名称不会在用户页面显示。
+BLOCKED_PERSONS=
