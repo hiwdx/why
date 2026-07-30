@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS ? "/why/" : "/",
+  // why.hiwd.com is a custom GitHub Pages domain, so assets are served at the root.
+  base: "/",
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
