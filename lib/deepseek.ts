@@ -143,6 +143,13 @@ export function createMacroErrorSummary(
   };
 }
 
+function hasSpecificCatalyst(value: string): boolean {
+  // “关注后续/财报/政策信号”无法帮助用户判断下一步；至少要同时给出时间与事件。
+  const hasTiming = /(?:\d{1,2}月\d{1,2}日|\d{1,2}[/.\-]\d{1,2}|周[一二三四五六日天]|今晚|明日|本周[一二三四五六日]?|下周[一二三四五六日]?|北京时间\s*\d{1,2}:\d{2})/i.test(value);
+  const hasEvent = /(?:CPI|PCE|非农|GDP|FOMC|利率决议|就业数据|通胀数据|财报|业绩|经济数据|央行决议|美联储)/i.test(value);
+  return hasTiming && hasEvent;
+}
+
 function parseMacroSummary(content: string | null, input: MacroSummaryInput): MacroSummary {
   if (!content) return createMacroErrorSummary(input, "invalid_model_output");
   let parsed: unknown;
@@ -162,6 +169,9 @@ function parseMacroSummary(content: string | null, input: MacroSummaryInput): Ma
   const value = parsed as Partial<MacroSummary>;
   if (value.error === "news_unavailable") return createMacroErrorSummary(input, "news_unavailable", content);
   if (typeof value.macro_reason !== "string" || typeof value.next_catalyst !== "string") {
+    return createMacroErrorSummary(input, "invalid_model_output", content);
+  }
+  if (!hasSpecificCatalyst(value.next_catalyst)) {
     return createMacroErrorSummary(input, "invalid_model_output", content);
   }
   if (shouldHideRestrictedContent(`${value.macro_reason}\n${value.next_catalyst}`, input.blockedPeople)) {

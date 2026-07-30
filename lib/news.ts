@@ -99,6 +99,14 @@ export async function fetchRecentNews(symbol: string, options: { now?: number; f
   const sources: Array<{ name: string; fetcher: () => Promise<NewsContext[]> }> = [
     ...(options.finnhubApiKey ? [{ name: "Finnhub", fetcher: () => fetchFinnhub(symbol, options.finnhubApiKey!, now) }] : []),
     { name: "Yahoo Finance RSS", fetcher: () => fetchRss({ name: "Yahoo Finance RSS", url: `https://finance.yahoo.com/rss/headline?s=${encodedSymbol}` }) },
+    // Yahoo 的免费 RSS 偶尔会在边缘节点返回 429；Google News RSS 作为独立的免费冗余源。
+    {
+      name: "Google News RSS",
+      fetcher: () => fetchRss({
+        name: "Google News RSS",
+        url: `https://news.google.com/rss/search?q=${encodeURIComponent(`${symbol} stock market`)}&hl=en-US&gl=US&ceid=US:en`,
+      }),
+    },
   ];
   const settled = await Promise.allSettled(sources.map((source) => source.fetcher()));
   const sourceErrors = settled.flatMap((result, index) => result.status === "rejected" ? [`${sources[index].name}: ${String(result.reason)}`] : []);
