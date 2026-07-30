@@ -52,14 +52,15 @@ export function shouldTrigger(quote: MarketQuote, activeWatchlist?: readonly str
   );
 }
 
-export function createMockQuotes(symbol: string): MarketQuote[] {
+export function createMockQuotes(symbol: string, scenario: "alert" | "quiet" = "alert"): MarketQuote[] {
+  const previousClose = 184.72;
   return [
     {
       symbol,
       market: "US",
       session: "pre",
-      price: 173.64,
-      previousClose: 184.72,
+      price: scenario === "quiet" ? 184.96 : 173.64,
+      previousClose,
       volume: 1_924_000,
       average30DayVolume: 1_034_000,
     },

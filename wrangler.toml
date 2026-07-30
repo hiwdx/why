@@ -9,10 +9,11 @@ crons = ["*/15 * * * *"]
 
 [[kv_namespaces]]
 binding = "WHY_DATA"
-id = "REPLACE_WITH_WHY_DATA_NAMESPACE_ID"
+id = "724b9a38788c4a2b82fd513420070023"
 
 [vars]
 MARKET_DATA_MODE = "mock"
+MOCK_SCENARIO = "quiet"
 # 短期热点以逗号分隔，例如 "TICKER_A,TICKER_B"。留空时仅扫描核心池。
 HOT_TICKERS = ""
 

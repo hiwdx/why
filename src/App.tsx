@@ -9,6 +9,8 @@ type HistoryResponse = { history: TriggeredAlert[] };
 type Status = "loading" | "ready" | "macro" | "empty" | "error";
 
 const sessionLabel = { pre: "盘前", regular: "盘中", after: "盘后" };
+const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
+const apiUrl = (path: string) => `${apiOrigin}${path}`;
 
 function symbolFromPath() {
   const querySymbol = new URLSearchParams(window.location.search).get("symbol");
@@ -39,8 +41,8 @@ export function App() {
     async function load() {
       try {
         const response = symbol
-          ? await fetch(`/api/alert/${encodeURIComponent(symbol)}`)
-          : await fetch("/api/latest");
+          ? await fetch(apiUrl(`/api/alert/${encodeURIComponent(symbol)}`))
+          : await fetch(apiUrl("/api/latest"));
         if (response.status === 404) return setStatus("empty");
         if (!response.ok) throw new Error("Unable to load alert data");
         const payload = await response.json() as AlertResponse | LatestResponse;
@@ -57,7 +59,7 @@ export function App() {
         }
 
         setAlert(nextAlert);
-        const historyResponse = await fetch(`/api/history/${nextAlert.market}/${encodeURIComponent(nextAlert.symbol)}`);
+        const historyResponse = await fetch(apiUrl(`/api/history/${nextAlert.market}/${encodeURIComponent(nextAlert.symbol)}`));
         if (historyResponse.ok) {
           setHistory((await historyResponse.json() as HistoryResponse).history);
         } else {

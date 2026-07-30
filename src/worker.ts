@@ -8,12 +8,21 @@ export interface Env {
   DEEPSEEK_API_KEY?: string;
   FINNHUB_API_KEY?: string;
   MARKET_DATA_MODE?: "mock" | "live";
+  MOCK_SCENARIO?: "alert" | "quiet";
   HOT_TICKERS?: string;
   BLOCKED_PERSONS?: string;
 }
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "access-control-allow-origin": "https://why.hiwd.com",
+      "vary": "origin",
+    },
+  });
 
 function toPublicAlert(alert: TriggeredAlert): TriggeredAlert {
   return { ...alert, ai: { ...alert.ai, raw_response: undefined } };
@@ -88,7 +97,7 @@ async function runRadarSweep(env: Env): Promise<TriggeredAlert[]> {
   const hotTickers = (env.HOT_TICKERS ?? "").split(",").map((ticker) => ticker.trim().toUpperCase()).filter(Boolean);
   const blockedPeople = (env.BLOCKED_PERSONS ?? "").split(",").map((name) => name.trim()).filter(Boolean);
   const usWatchlist = [...hotTickers, ...MARKET_RULES.US.watchlist];
-  const quotes = createMockQuotes(usWatchlist[0]);
+  const quotes = createMockQuotes(usWatchlist[0], env.MOCK_SCENARIO ?? "alert");
   const now = new Date().toISOString();
   const alerts: TriggeredAlert[] = [];
 
