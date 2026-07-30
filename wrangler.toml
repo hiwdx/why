@@ -7,6 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 [triggers]
 crons = ["*/15 * * * *"]
 
+[[routes]]
+pattern = "api.hiwd.com"
+custom_domain = true
+
 [[kv_namespaces]]
 binding = "WHY_DATA"
 id = "724b9a38788c4a2b82fd513420070023"
