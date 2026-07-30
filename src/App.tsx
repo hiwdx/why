@@ -127,7 +127,7 @@ function Dashboard({ alert, history }: { alert: TriggeredAlert; history: Trigger
 
 function MacroSummaryCard({ summary }: { summary: MacroSummary }) {
   const restricted = shouldHideRestrictedContent(`${summary.status_label}\n${summary.macro_reason ?? ""}\n${summary.next_catalyst}`);
-  const failed = Boolean(summary.error) || restricted || !summary.macro_reason;
+  const failed = (Boolean(summary.error) && summary.error !== "catalyst_unavailable") || restricted || !summary.macro_reason;
   const macroReason = failed ? "[信源获取失败，请稍后重试]" : summary.macro_reason;
   const nextCatalyst = failed ? "[信源获取失败，请稍后重试]" : summary.next_catalyst;
 

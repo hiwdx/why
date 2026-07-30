@@ -29,7 +29,7 @@ export type MacroSummary = {
   macro_reason: string;
   next_catalyst: string;
   timestamp: string;
-  error?: "market_data_unavailable" | "news_unavailable" | "deepseek_unavailable" | "invalid_model_output" | "restricted_content";
+  error?: "market_data_unavailable" | "news_unavailable" | "deepseek_unavailable" | "invalid_model_output" | "restricted_content" | "catalyst_unavailable";
   raw_response?: string;
 };
 
@@ -168,14 +168,27 @@ function parseMacroSummary(content: string | null, input: MacroSummaryInput): Ma
 
   const value = parsed as Partial<MacroSummary>;
   if (value.error === "news_unavailable") return createMacroErrorSummary(input, "news_unavailable", content);
-  if (typeof value.macro_reason !== "string" || typeof value.next_catalyst !== "string") {
+  if (typeof value.macro_reason !== "string") {
     return createMacroErrorSummary(input, "invalid_model_output", content);
   }
-  if (!hasSpecificCatalyst(value.next_catalyst)) {
-    return createMacroErrorSummary(input, "invalid_model_output", content);
-  }
-  if (shouldHideRestrictedContent(`${value.macro_reason}\n${value.next_catalyst}`, input.blockedPeople)) {
+  if (shouldHideRestrictedContent(`${value.macro_reason}\n${value.next_catalyst ?? ""}`, input.blockedPeople)) {
     return createMacroErrorSummary(input, "restricted_content", content);
+  }
+
+  // 原因由新闻充分支持、但新闻没有给出可核验日期时，保留原因；不要把一次成功的 RAG 误报成信源故障。
+  if (typeof value.next_catalyst !== "string" || !hasSpecificCatalyst(value.next_catalyst)) {
+    return {
+      type: "macro_summary",
+      market: input.market,
+      index_name: input.indexName,
+      change_percent: `${input.changePercent > 0 ? "+" : ""}${input.changePercent.toFixed(2)}%`,
+      status_label: macroStatusLabel(input.changePercent),
+      macro_reason: value.macro_reason,
+      next_catalyst: "暂无已验证的下一催化事件",
+      timestamp: input.now,
+      error: "catalyst_unavailable",
+      raw_response: content.slice(0, 1200),
+    };
   }
 
   return {
