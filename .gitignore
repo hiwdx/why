@@ -2,6 +2,7 @@ node_modules
 dist
 .next
 .dev.vars
+.dev.vars.save
 .wrangler
 .DS_Store
 work/
