@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
-:root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif; }
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; }
-body { margin: 0; background: #08090b; }
+body { margin: 0; background: #101110; }
 
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .backdrop-blur-xl { backdrop-filter: none; background-color: rgba(9, 9, 11, 0.96); }
 }
