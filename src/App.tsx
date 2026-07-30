@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { shouldHideRestrictedContent } from "../lib/content-safety";
+import type { MacroSummary } from "../lib/deepseek";
 import type { TriggeredAlert } from "./domain/radar";
 
-type LatestResponse = { alerts: TriggeredAlert[] };
+type LatestResponse = { alerts: TriggeredAlert[]; macroSummaries?: MacroSummary[] };
 type AlertResponse = { alert?: TriggeredAlert };
 type HistoryResponse = { history: TriggeredAlert[] };
-type Status = "loading" | "ready" | "empty" | "error";
+type Status = "loading" | "ready" | "macro" | "empty" | "error";
 
 const sessionLabel = { pre: "盘前", regular: "盘中", after: "盘后" };
 
@@ -32,6 +33,7 @@ export function App() {
   const [status, setStatus] = useState<Status>("loading");
   const [alert, setAlert] = useState<TriggeredAlert | null>(null);
   const [history, setHistory] = useState<TriggeredAlert[]>([]);
+  const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -41,10 +43,18 @@ export function App() {
           : await fetch("/api/latest");
         if (response.status === 404) return setStatus("empty");
         if (!response.ok) throw new Error("Unable to load alert data");
+        const payload = await response.json() as AlertResponse | LatestResponse;
         const nextAlert = symbol
-          ? ((await response.json() as AlertResponse).alert ?? null)
-          : ((await response.json() as LatestResponse).alerts[0] ?? null);
-        if (!nextAlert) return setStatus("empty");
+          ? (payload as AlertResponse).alert ?? null
+          : (payload as LatestResponse).alerts[0] ?? null;
+        if (!nextAlert) {
+          const nextMacroSummary = !symbol ? (payload as LatestResponse).macroSummaries?.find((summary) => summary.market === "US") ?? (payload as LatestResponse).macroSummaries?.[0] : null;
+          if (nextMacroSummary) {
+            setMacroSummary(nextMacroSummary);
+            return setStatus("macro");
+          }
+          return setStatus("empty");
+        }
 
         setAlert(nextAlert);
         const historyResponse = await fetch(`/api/history/${nextAlert.market}/${encodeURIComponent(nextAlert.symbol)}`);
@@ -81,6 +91,7 @@ export function App() {
         </section>
 
         {status === "loading" && <SkeletonDashboard />}
+        {status === "macro" && macroSummary && <MacroSummaryCard summary={macroSummary} />}
         {status === "empty" && <EmptyState symbol={symbol} />}
         {status === "error" && <ErrorState />}
         {status === "ready" && alert && <Dashboard alert={alert} history={history.length ? history : [alert]} />}
@@ -95,6 +106,35 @@ export function App() {
 
 function Dashboard({ alert, history }: { alert: TriggeredAlert; history: TriggeredAlert[] }) {
   return <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)] lg:gap-5"><WhyCard alert={alert} /><Timeline symbol={alert.symbol} history={history} /></div>;
+}
+
+function MacroSummaryCard({ summary }: { summary: MacroSummary }) {
+  const restricted = shouldHideRestrictedContent(`${summary.status_label}\n${summary.why_quiet}\n${summary.next_catalyst}`);
+  const whyQuiet = restricted || summary.error ? "市场处于常规交易节奏，暂未发现需要展示的宏观催化。" : summary.why_quiet;
+  const nextCatalyst = restricted || summary.error ? "关注下一项重要经济数据、央行决议或财报。" : summary.next_catalyst;
+
+  return (
+    <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-6 backdrop-blur-xl sm:mt-6 sm:p-9">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div>
+          <p className="font-mono text-[11px] tracking-[0.14em] text-zinc-500">MARKET CONTEXT · {summary.market}</p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">{summary.status_label}</h2>
+          <p className="mt-2 text-sm text-zinc-400">{summary.index_name} · {formatTime(summary.timestamp)}</p>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-right font-mono">
+          <p className="text-xs text-zinc-500">{summary.index_name}</p>
+          <p className="mt-1 text-xl font-semibold text-zinc-100">{summary.change_percent}</p>
+        </div>
+      </div>
+
+      <p className="mt-8 max-w-2xl text-xl font-medium leading-relaxed tracking-[-0.025em] text-zinc-100 sm:text-2xl">{whyQuiet}</p>
+
+      <div className="mt-8 rounded-xl bg-zinc-900/70 p-4 sm:p-5">
+        <p className="font-mono text-[10px] tracking-[0.14em] text-[#62ddd4]">NEXT CATALYST</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">{nextCatalyst}</p>
+      </div>
+    </section>
+  );
 }
 
 function WhyCard({ alert }: { alert: TriggeredAlert }) {
