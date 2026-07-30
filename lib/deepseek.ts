@@ -224,6 +224,7 @@ export async function generateDeepSeekAlert(apiKey: string, input: SummarizeInpu
 
     return parseAlert(response.choices[0]?.message.content, input);
   } catch (error) {
+    console.error("[DeepSeek] 个股归因请求失败。", error);
     return errorAlert(input, `DeepSeek 请求失败：${error instanceof Error ? error.message : "unknown error"}`);
   }
 }
@@ -258,6 +259,7 @@ export async function generateDeepSeekMacroSummary(apiKey: string, input: MacroS
     });
     return parseMacroSummary(response.choices[0]?.message.content, input);
   } catch (error) {
+    console.error("[DeepSeek] 大盘摘要请求失败。", error);
     return createMacroErrorSummary(input, "deepseek_unavailable", error instanceof Error ? error.message : "unknown error");
   }
 }
