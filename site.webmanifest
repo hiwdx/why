@@ -1,0 +1,17 @@
+{
+  "name": "why - hiwd 异动雷达",
+  "short_name": "why",
+  "description": "用结构化信息解释股票异动。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101110",
+  "theme_color": "#101110",
+  "icons": [
+    {
+      "src": "/favicon-light.png?v=2",
+      "sizes": "1200x1200",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
