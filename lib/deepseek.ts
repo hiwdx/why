@@ -26,10 +26,10 @@ export type MacroSummary = {
   index_name: string;
   change_percent: string;
   status_label: string;
-  why_quiet: string;
+  macro_reason: string;
   next_catalyst: string;
   timestamp: string;
-  error?: string;
+  error?: "market_data_unavailable" | "news_unavailable" | "deepseek_unavailable" | "invalid_model_output" | "restricted_content";
   raw_response?: string;
 };
 
@@ -57,8 +57,11 @@ const systemPrompt = `你是 why.hiwd.com 的金融信息编辑。只根据新�
 不得输出中国国家、政府或军队领导人信息，也不得输出敏感人物信息。涉及此类内容时必须视为没有可用新闻 Context，并使用规定的无新闻兜底文案。
 只返回合法 JSON 对象，不得使用 Markdown 代码块或输出额外文字。`;
 
-const macroSystemPrompt = `你是 why.hiwd.com 的市场编辑。当个股没有触发显著异动时，只根据传入的指数行情和新闻 Context，解释市场为何处于平静或盘整状态。
-不要编造因果关系。若新闻 Context 为空，why_quiet 必须严格为“未检测到明显的新闻事件催化，市场可能处于常规交易节奏。”，next_catalyst 必须为“关注下一项重要经济数据、央行决议或财报。”。
+const macroSystemPrompt = `你是 why.hiwd.com 的市场编辑。当个股没有触发显著异动时，只根据传入的指数行情和新闻 Context，解释大盘当日表现。
+你必须严格使用传入的 status_label，不得改写、弱化或把大幅涨跌称为盘整。
+macro_reason 必须提取新闻 Context 中的具体事件、数据或行业变化，并说明其与当日指数表现的关系。禁止输出“未检测到明显事件”“常规交易节奏”“资金博弈”等空泛模板。
+next_catalyst 必须提取新闻 Context 中明确、即将发生的事件或日期。禁止使用“关注后续”“重要数据”等模糊词。
+如果 Context 无法支持具体原因或催化剂，返回 error 字段为 "news_unavailable"，且 macro_reason 与 next_catalyst 均严格为“[信源获取失败，请稍后重试]”。
 不得输出中国国家、政府或军队领导人信息，也不得输出敏感人物信息。涉及此类内容时必须视为没有可用新闻 Context，并使用规定的无新闻兜底文案。
 只返回合法 JSON 对象，不得使用 Markdown 代码块或输出额外文字。`;
 
@@ -114,42 +117,55 @@ function parseAlert(content: string | null, input: SummarizeInput): DeepSeekAler
   };
 }
 
-export function createFallbackMacroSummary(input: MacroSummaryInput, error?: string, raw = ""): MacroSummary {
+export function macroStatusLabel(changePercent: number): string {
+  const absoluteChange = Math.abs(changePercent);
+  if (absoluteChange < 0.5) return "盘整观望";
+  if (absoluteChange <= 1.5) return changePercent >= 0 ? "温和走强" : "常规走弱";
+  return changePercent >= 0 ? "强势拉升" : "大幅下挫";
+}
+
+export function createMacroErrorSummary(
+  input: MacroSummaryInput,
+  error: NonNullable<MacroSummary["error"]>,
+  raw = "",
+): MacroSummary {
   return {
     type: "macro_summary",
     market: input.market,
     index_name: input.indexName,
     change_percent: `${input.changePercent > 0 ? "+" : ""}${input.changePercent.toFixed(2)}%`,
-    status_label: "窄幅整理",
-    why_quiet: "未检测到明显的新闻事件催化，市场可能处于常规交易节奏。",
-    next_catalyst: "关注下一项重要经济数据、央行决议或财报。",
+    status_label: macroStatusLabel(input.changePercent),
+    macro_reason: "[信源获取失败，请稍后重试]",
+    next_catalyst: "[信源获取失败，请稍后重试]",
     timestamp: input.now,
-    ...(error ? { error, raw_response: raw.slice(0, 1200) } : {}),
+    error,
+    raw_response: raw.slice(0, 1200),
   };
 }
 
 function parseMacroSummary(content: string | null, input: MacroSummaryInput): MacroSummary {
-  if (!content) return createFallbackMacroSummary(input, "解析失败：模型返回为空");
+  if (!content) return createMacroErrorSummary(input, "invalid_model_output");
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
     const extracted = content.match(/\{[\s\S]*\}/)?.[0];
-    if (!extracted) return createFallbackMacroSummary(input, "解析失败：未找到 JSON 对象", content);
+    if (!extracted) return createMacroErrorSummary(input, "invalid_model_output", content);
     try {
       parsed = JSON.parse(extracted);
     } catch {
-      return createFallbackMacroSummary(input, "解析失败：JSON 对象无效", content);
+      return createMacroErrorSummary(input, "invalid_model_output", content);
     }
   }
-  if (!parsed || typeof parsed !== "object") return createFallbackMacroSummary(input, "解析失败：输出不是 JSON 对象", content);
+  if (!parsed || typeof parsed !== "object") return createMacroErrorSummary(input, "invalid_model_output", content);
 
   const value = parsed as Partial<MacroSummary>;
-  if (typeof value.status_label !== "string" || typeof value.why_quiet !== "string" || typeof value.next_catalyst !== "string") {
-    return createFallbackMacroSummary(input, "解析失败：JSON 字段不完整", content);
+  if (value.error === "news_unavailable") return createMacroErrorSummary(input, "news_unavailable", content);
+  if (typeof value.macro_reason !== "string" || typeof value.next_catalyst !== "string") {
+    return createMacroErrorSummary(input, "invalid_model_output", content);
   }
-  if (shouldHideRestrictedContent(`${value.status_label}\n${value.why_quiet}\n${value.next_catalyst}`, input.blockedPeople)) {
-    return createFallbackMacroSummary(input, "内容过滤：模型输出包含受限政治内容");
+  if (shouldHideRestrictedContent(`${value.macro_reason}\n${value.next_catalyst}`, input.blockedPeople)) {
+    return createMacroErrorSummary(input, "restricted_content", content);
   }
 
   return {
@@ -157,8 +173,8 @@ function parseMacroSummary(content: string | null, input: MacroSummaryInput): Ma
     market: input.market,
     index_name: input.indexName,
     change_percent: `${input.changePercent > 0 ? "+" : ""}${input.changePercent.toFixed(2)}%`,
-    status_label: value.status_label,
-    why_quiet: value.why_quiet,
+    status_label: macroStatusLabel(input.changePercent),
+    macro_reason: value.macro_reason,
     next_catalyst: value.next_catalyst,
     timestamp: input.now,
   };
@@ -220,9 +236,9 @@ export async function generateDeepSeekMacroSummary(apiKey: string, input: MacroS
               market: input.market,
               index_name: input.indexName,
               change_percent: `${input.changePercent > 0 ? "+" : ""}${input.changePercent.toFixed(2)}%`,
-              status_label: "缩量盘整 (Consolidating)",
-              why_quiet: "一句话解释市场为何平静或盘整",
-              next_catalyst: "市场正在等待的下一个大事件",
+              status_label: macroStatusLabel(input.changePercent),
+              macro_reason: "从新闻 Context 提取的具体宏观原因",
+              next_catalyst: "从新闻 Context 提取的明确待发生事件",
               timestamp: input.now,
             },
             market_news_context_last_48h: input.newsContext,
@@ -232,6 +248,6 @@ export async function generateDeepSeekMacroSummary(apiKey: string, input: MacroS
     });
     return parseMacroSummary(response.choices[0]?.message.content, input);
   } catch (error) {
-    return createFallbackMacroSummary(input, `DeepSeek 请求失败：${error instanceof Error ? error.message : "unknown error"}`);
+    return createMacroErrorSummary(input, "deepseek_unavailable", error instanceof Error ? error.message : "unknown error");
   }
 }

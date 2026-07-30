@@ -1,4 +1,4 @@
-import { createFallbackMacroSummary, generateDeepSeekAlert, generateDeepSeekMacroSummary, type MacroSummary } from "../lib/deepseek";
+import { createMacroErrorSummary, generateDeepSeekAlert, generateDeepSeekMacroSummary, type MacroSummary } from "../lib/deepseek";
 import { buildNewsContext, fetchRecentNews, type NewsFetchResult } from "../lib/news";
 import { MARKET_RULES } from "../config/rules";
 import { createFallbackAiAlert, createMockQuotes, getChangePercent, shouldTrigger, type TriggeredAlert } from "./domain/radar";
@@ -28,13 +28,18 @@ function toPublicAlert(alert: TriggeredAlert): TriggeredAlert {
   return { ...alert, ai: { ...alert.ai, raw_response: undefined } };
 }
 
+function toPublicMacroSummary(summary: MacroSummary): MacroSummary {
+  // 保留可供界面判断的失败码，但不把模型原始响应或上游错误回传给访客。
+  return { ...summary, raw_response: undefined };
+}
+
 type MacroMarket = "US" | "HK";
-type IndexConfig = { market: MacroMarket; ticker: string; supportingTicker?: string; indexName: string; fallbackChangePercent: number };
-type IndexSnapshot = { changePercent: number; ticker: string };
+type IndexConfig = { market: MacroMarket; ticker: string; supportingTicker?: string; indexName: string };
+type IndexSnapshot = { changePercent: number; ticker: string; failed?: boolean };
 
 const MACRO_INDICES: IndexConfig[] = [
-  { market: "US", ticker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500", fallbackChangePercent: 0.15 },
-  { market: "HK", ticker: "^HSI", indexName: "恒生指数", fallbackChangePercent: -0.1 },
+  { market: "US", ticker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500" },
+  { market: "HK", ticker: "^HSI", indexName: "恒生指数" },
 ];
 
 async function fetchIndexSnapshot(config: IndexConfig): Promise<IndexSnapshot> {
@@ -49,8 +54,8 @@ async function fetchIndexSnapshot(config: IndexConfig): Promise<IndexSnapshot> {
     if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose <= 0) throw new Error("Yahoo index quote payload was incomplete");
     return { ticker: config.ticker, changePercent: ((price - previousClose) / previousClose) * 100 };
   } catch (error) {
-    console.warn(`[Macro] ${config.ticker} 行情读取失败，使用保守兜底。`, error);
-    return { ticker: config.ticker, changePercent: config.fallbackChangePercent };
+    console.warn(`[Macro] ${config.ticker} 行情读取失败。`, error);
+    return { ticker: config.ticker, changePercent: 0, failed: true };
   }
 }
 
@@ -68,6 +73,19 @@ function mergeNewsResults(results: NewsFetchResult[]) {
 async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blockedPeople: string[]): Promise<MacroSummary> {
   console.log(`[Macro] 开始生成 ${config.market} 大盘兜底摘要。`);
   const snapshot = await fetchIndexSnapshot(config);
+  const baseInput = {
+    market: config.market,
+    indexName: config.indexName,
+    changePercent: snapshot.changePercent,
+    newsContext: "",
+    blockedPeople,
+    now,
+  } as const;
+  if (snapshot.failed) {
+    const summary = createMacroErrorSummary(baseInput, "market_data_unavailable");
+    await env.WHY_DATA.put(`MARKET_SUMMARY_${config.market}`, JSON.stringify(summary));
+    return summary;
+  }
   const tickers = [config.ticker, config.supportingTicker].filter((ticker): ticker is string => Boolean(ticker));
   const news = mergeNewsResults(await Promise.all(tickers.map((ticker) => fetchRecentNews(ticker, {
     now: Date.parse(now), finnhubApiKey: env.FINNHUB_API_KEY, blockedPeople,
@@ -75,16 +93,14 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
   if (news.sourceErrors.length) console.warn(`[Macro] ${config.market} 部分新闻源失败`, news.sourceErrors);
 
   const input = {
-    market: config.market,
-    indexName: config.indexName,
-    changePercent: snapshot.changePercent,
+    ...baseInput,
     newsContext: news.context,
-    blockedPeople,
-    now,
   } as const;
-  const summary = env.DEEPSEEK_API_KEY
-    ? await generateDeepSeekMacroSummary(env.DEEPSEEK_API_KEY, input)
-    : createFallbackMacroSummary(input);
+  const summary = news.items.length === 0
+    ? createMacroErrorSummary(input, "news_unavailable")
+    : env.DEEPSEEK_API_KEY
+      ? await generateDeepSeekMacroSummary(env.DEEPSEEK_API_KEY, input)
+      : createMacroErrorSummary(input, "deepseek_unavailable");
 
   await env.WHY_DATA.put(`MARKET_SUMMARY_${config.market}`, JSON.stringify(summary));
   console.log(`[Success] MARKET_SUMMARY_${config.market} KV 写入成功，基准 ${snapshot.ticker} ${summary.change_percent}。`);
@@ -163,7 +179,11 @@ export default {
       const macroSummaries = alerts.length === 0
         ? (await Promise.all(MACRO_INDICES.map((config) => env.WHY_DATA.get<MacroSummary>(`MARKET_SUMMARY_${config.market}`, "json")))).filter((summary): summary is MacroSummary => Boolean(summary))
         : [];
-      return json({ alerts: alerts.map(toPublicAlert), macroSummaries, generatedAt: new Date().toISOString() });
+      return json({
+        alerts: alerts.map(toPublicAlert),
+        macroSummaries: macroSummaries.map(toPublicMacroSummary),
+        generatedAt: new Date().toISOString(),
+      });
     }
 
     if (request.method === "GET" && url.pathname.startsWith("/api/alert/")) {

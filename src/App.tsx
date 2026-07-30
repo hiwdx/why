@@ -126,9 +126,10 @@ function Dashboard({ alert, history }: { alert: TriggeredAlert; history: Trigger
 }
 
 function MacroSummaryCard({ summary }: { summary: MacroSummary }) {
-  const restricted = shouldHideRestrictedContent(`${summary.status_label}\n${summary.why_quiet}\n${summary.next_catalyst}`);
-  const whyQuiet = restricted || summary.error ? "市场处于常规交易节奏，暂未发现需要展示的宏观催化。" : summary.why_quiet;
-  const nextCatalyst = restricted || summary.error ? "关注下一项重要经济数据、央行决议或财报。" : summary.next_catalyst;
+  const restricted = shouldHideRestrictedContent(`${summary.status_label}\n${summary.macro_reason ?? ""}\n${summary.next_catalyst}`);
+  const failed = Boolean(summary.error) || restricted || !summary.macro_reason;
+  const macroReason = failed ? "[信源获取失败，请稍后重试]" : summary.macro_reason;
+  const nextCatalyst = failed ? "[信源获取失败，请稍后重试]" : summary.next_catalyst;
 
   return (
     <section className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-6 backdrop-blur-xl sm:mt-6 sm:p-9">
@@ -144,7 +145,7 @@ function MacroSummaryCard({ summary }: { summary: MacroSummary }) {
         </div>
       </div>
 
-      <p className="mt-8 max-w-2xl text-xl font-medium leading-relaxed tracking-[-0.025em] text-zinc-100 sm:text-2xl">{whyQuiet}</p>
+      <p className="mt-8 max-w-2xl text-xl font-medium leading-relaxed tracking-[-0.025em] text-zinc-100 sm:text-2xl">{macroReason}</p>
 
       <div className="mt-8 rounded-xl bg-zinc-900/70 p-4 sm:p-5">
         <p className="font-mono text-[10px] tracking-[0.14em] text-[#62ddd4]">NEXT CATALYST</p>
