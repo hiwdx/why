@@ -76,8 +76,8 @@ export function App() {
           <div>
             <p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">{symbol ? "标的档案" : "市场扫描"}</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">{symbol ?? "今日异动"}</h1>
-            <p className="mt-3 text-sm text-white/55">市场只告诉你涨跌，<span className="text-[#62ddd4]">why</span> 告诉你原因。</p>
           </div>
+          <p className="hidden whitespace-nowrap text-right text-sm text-white/50 sm:block">市场只告诉你涨跌，<span className="text-[#62ddd4]">why</span> 告诉你原因。</p>
         </section>
 
         {status === "loading" && <SkeletonDashboard />}
