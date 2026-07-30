@@ -62,19 +62,21 @@ export function App() {
   }, [symbol]);
 
   return (
-    <main className="flex min-h-[100dvh] overflow-x-hidden bg-[#101110] px-4 py-4 text-[#f3f5f1] selection:bg-[#00c2b3]/30 sm:px-6 sm:py-6">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-white/10 pb-4">
+    <main className="min-h-[100dvh] overflow-x-hidden bg-[#0c0e0d] px-5 py-6 text-[#f3f5f1] selection:bg-[#00c2b3]/30 sm:px-8 sm:py-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <header className="flex items-center justify-between py-2">
           <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页">
-            <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-8 w-auto" />
+            <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-7 w-auto" />
           </a>
-          <span className="text-sm text-white/55">解释股票异动</span>
+          <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">WHY · MARKET RADAR</span>
         </header>
 
-        <section className="max-w-2xl py-10 sm:py-14">
-          <p className="text-sm text-[#62ddd4]">{symbol ? "标的异动档案" : "今日重点异动"}</p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] text-white sm:text-5xl">先看原因，再看价格。</h1>
-          <p className="mt-4 max-w-lg text-sm leading-6 text-white/50">把价格、成交与资讯压成一张能快速读完的卡。</p>
+        <section className="flex items-end justify-between gap-6 py-8 sm:py-10">
+          <div>
+            <p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">{symbol ? "标的档案" : "市场扫描"}</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">{symbol ?? "今日异动"}</h1>
+          </div>
+          <p className="hidden max-w-xs text-right text-sm leading-6 text-white/50 sm:block">将价格、成交与资讯整理成一条可快速判断的原因。</p>
         </section>
 
         {status === "loading" && <SkeletonDashboard />}
@@ -82,8 +84,8 @@ export function App() {
         {status === "error" && <ErrorState />}
         {status === "ready" && alert && <Dashboard alert={alert} history={history.length ? history : [alert]} />}
 
-        <footer className="mt-auto border-t border-white/10 pt-4 text-center text-xs leading-5 text-white/45">
-          <div className="mb-1">由 hiwd 自动整理</div>
+        <footer className="mt-12 pb-2 text-xs leading-5 text-white/40">
+          <div>由 hiwd 自动整理</div>
           <div>© 2026 <a className="text-[#62ddd4]" href="https://hiwd.com/">hiwd</a> · All rights reserved.</div>
         </footer>
       </div>
@@ -117,7 +119,7 @@ function WhyCard({ alert }: { alert: TriggeredAlert }) {
 
   const movementClass = isUp ? "border-rose-300/25 bg-rose-300/10 text-rose-200" : "border-emerald-300/25 bg-emerald-300/10 text-emerald-200";
   return (
-    <article className="border border-white/10 bg-[#151715] p-5 sm:p-7">
+    <article className="rounded-2xl border border-white/10 bg-[#141715] p-5 sm:p-7">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -154,7 +156,7 @@ function WhyCard({ alert }: { alert: TriggeredAlert }) {
 
 function Timeline({ symbol, history }: { symbol: string; history: TriggeredAlert[] }) {
   return (
-    <aside className="border border-white/10 bg-[#151715] p-5 sm:p-6">
+    <aside className="rounded-2xl border border-white/10 bg-[#141715] p-5 sm:p-6">
       <h2 className="text-lg font-semibold tracking-[-0.03em] text-white">{symbol} 时间线</h2>
       <p className="mt-1 text-sm text-white/45">把单次波动放回连续语境。</p>
       <ol className="mt-7">
@@ -182,9 +184,9 @@ function SkeletonDashboard() {
 }
 
 function EmptyState({ symbol }: { symbol: string | null }) {
-  return <section className="border-y border-white/10 py-16 sm:py-20"><p className="text-sm font-medium text-[#62ddd4]">市场状态</p><h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">{symbol ? `${symbol} 暂无可展示的异动记录。` : "今日市场平稳，暂无重大异动。"}</h2><p className="mt-4 max-w-md text-sm leading-6 text-white/65">系统持续检查价格、成交量与市值门槛。符合规则的标的会自动出现。</p></section>;
+  return <section className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#141715] p-6 sm:mt-6 sm:p-9"><div className="flex items-start justify-between gap-6"><div><p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">RADAR ONLINE</p><h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">{symbol ? `${symbol} 暂无可展示的异动记录。` : "今日市场平稳。"}</h2><p className="mt-3 max-w-lg text-sm leading-6 text-white/60">{symbol ? "暂未发现满足异动规则的记录。" : "目前没有标的同时达到价格与成交量的预警阈值。"}</p></div><span className="hidden size-3 shrink-0 rounded-full bg-[#00c2b3] shadow-[0_0_0_6px_rgba(0,194,179,0.10)] sm:block" /></div><div className="mt-8 grid gap-3 text-sm text-white/55 sm:grid-cols-3"><div><span className="block font-mono text-[10px] tracking-[0.12em] text-white/35">COVERAGE</span><span className="mt-1 block">美股 · 港股</span></div><div><span className="block font-mono text-[10px] tracking-[0.12em] text-white/35">SIGNAL</span><span className="mt-1 block">价格 + 成交量</span></div><div><span className="block font-mono text-[10px] tracking-[0.12em] text-white/35">STATUS</span><span className="mt-1 block text-[#62ddd4]">持续监测中</span></div></div></section>;
 }
 
 function ErrorState() {
-  return <section className="border-y border-white/10 py-16"><p className="text-sm font-medium text-[#62ddd4]">市场状态</p><h2 className="mt-4 text-xl font-semibold text-white">暂时无法读取市场信号。</h2><p className="mt-3 text-sm text-white/65">请稍后刷新页面。</p></section>;
+  return <section className="mt-6 rounded-2xl border border-white/10 bg-[#141715] p-6 sm:mt-8 sm:p-9"><p className="font-mono text-[11px] tracking-[0.14em] text-[#62ddd4]">RADAR PAUSED</p><h2 className="mt-3 text-xl font-semibold text-white">暂时无法读取市场信号。</h2><p className="mt-3 text-sm text-white/60">请稍后刷新页面。</p></section>;
 }
