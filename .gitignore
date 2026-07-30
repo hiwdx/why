@@ -1,0 +1,7 @@
+node_modules
+dist
+.next
+.dev.vars
+.wrangler
+.DS_Store
+work/
