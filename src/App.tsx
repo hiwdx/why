@@ -65,10 +65,11 @@ export function App() {
     <main className="min-h-[100dvh] overflow-x-hidden bg-[#0c0e0d] px-5 py-6 text-[#f3f5f1] selection:bg-[#00c2b3]/30 sm:px-8 sm:py-8">
       <div className="mx-auto w-full max-w-5xl">
         <header className="flex items-center justify-between py-2">
-          <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页">
+          <a href={import.meta.env.BASE_URL} aria-label="why.hiwd.com 首页" className="flex items-center gap-3">
             <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-7 w-auto" />
+            <span className="text-sm font-medium tracking-[-0.02em] text-white/65">why</span>
           </a>
-          <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">WHY · MARKET RADAR</span>
+          <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">US · HK</span>
         </header>
 
         <section className="flex items-end justify-between gap-6 py-8 sm:py-10">
