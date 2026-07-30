@@ -86,7 +86,6 @@ export function App() {
         {status === "ready" && alert && <Dashboard alert={alert} history={history.length ? history : [alert]} />}
 
         <footer className="mt-12 pb-2 text-xs leading-5 text-white/40">
-          <div>由 hiwd 自动整理</div>
           <div>© 2026 <a className="text-[#62ddd4]" href="https://hiwd.com/">hiwd</a> · All rights reserved.</div>
         </footer>
       </div>
