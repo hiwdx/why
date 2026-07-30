@@ -11,6 +11,19 @@ type Status = "loading" | "ready" | "macro" | "empty" | "error";
 const sessionLabel = { pre: "盘前", regular: "盘中", after: "盘后" };
 const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
 const apiUrl = (path: string) => `${apiOrigin}${path}`;
+const macroCacheKey = "why:last-macro-summary";
+
+function readCachedMacroSummary(symbol: string | null): MacroSummary | null {
+  if (symbol) return null;
+  try {
+    const cached = window.localStorage.getItem(macroCacheKey);
+    if (!cached) return null;
+    const value = JSON.parse(cached) as MacroSummary;
+    return value.type === "macro_summary" && (value.market === "US" || value.market === "HK") ? value : null;
+  } catch {
+    return null;
+  }
+}
 
 function symbolFromPath() {
   const querySymbol = new URLSearchParams(window.location.search).get("symbol");
@@ -32,10 +45,11 @@ function displayedReason(alert: TriggeredAlert) {
 
 export function App() {
   const symbol = useMemo(symbolFromPath, []);
-  const [status, setStatus] = useState<Status>("loading");
+  const [cachedMacroSummary] = useState<MacroSummary | null>(() => readCachedMacroSummary(symbol));
+  const [status, setStatus] = useState<Status>(() => cachedMacroSummary ? "macro" : "loading");
   const [alert, setAlert] = useState<TriggeredAlert | null>(null);
   const [history, setHistory] = useState<TriggeredAlert[]>([]);
-  const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(null);
+  const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(cachedMacroSummary);
 
   useEffect(() => {
     async function load() {
@@ -52,6 +66,7 @@ export function App() {
         if (!nextAlert) {
           const nextMacroSummary = !symbol ? (payload as LatestResponse).macroSummaries?.find((summary) => summary.market === "US") ?? (payload as LatestResponse).macroSummaries?.[0] : null;
           if (nextMacroSummary) {
+            window.localStorage.setItem(macroCacheKey, JSON.stringify(nextMacroSummary));
             setMacroSummary(nextMacroSummary);
             return setStatus("macro");
           }
@@ -67,7 +82,7 @@ export function App() {
         }
         setStatus("ready");
       } catch {
-        setStatus("error");
+        if (!macroSummary) setStatus("error");
       }
     }
     void load();
