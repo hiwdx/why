@@ -87,9 +87,18 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
     return summary;
   }
   const tickers = [config.ticker, config.supportingTicker].filter((ticker): ticker is string => Boolean(ticker));
-  const news = mergeNewsResults(await Promise.all(tickers.map((ticker) => fetchRecentNews(ticker, {
-    now: Date.parse(now), finnhubApiKey: env.FINNHUB_API_KEY, blockedPeople,
-  }))));
+  const macroCalendarQuery = config.market === "US"
+    ? "US stock market upcoming CPI FOMC economic data earnings calendar"
+    : "Hong Kong stock market upcoming economic data earnings calendar";
+  const news = mergeNewsResults(await Promise.all([
+    ...tickers.map((ticker) => fetchRecentNews(ticker, {
+      now: Date.parse(now), finnhubApiKey: env.FINNHUB_API_KEY, blockedPeople,
+    })),
+    // 为 next_catalyst 补充可验证的日历型资讯，不能仅靠指数/ETF 标题猜测。
+    fetchRecentNews(config.ticker, {
+      now: Date.parse(now), blockedPeople, googleSearchQuery: macroCalendarQuery,
+    }),
+  ]));
   if (news.sourceErrors.length) console.warn(`[Macro] ${config.market} 部分新闻源失败`, news.sourceErrors);
 
   const input = {

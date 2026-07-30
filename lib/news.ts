@@ -93,9 +93,10 @@ export function buildNewsContext(items: NewsContext[]): string {
   return lines.join("\n\n");
 }
 
-export async function fetchRecentNews(symbol: string, options: { now?: number; finnhubApiKey?: string; blockedPeople?: readonly string[] } = {}): Promise<NewsFetchResult> {
+export async function fetchRecentNews(symbol: string, options: { now?: number; finnhubApiKey?: string; blockedPeople?: readonly string[]; googleSearchQuery?: string } = {}): Promise<NewsFetchResult> {
   const now = options.now ?? Date.now();
   const encodedSymbol = encodeURIComponent(symbol);
+  const googleSearchQuery = options.googleSearchQuery?.trim() || `${symbol} stock market`;
   const sources: Array<{ name: string; fetcher: () => Promise<NewsContext[]> }> = [
     ...(options.finnhubApiKey ? [{ name: "Finnhub", fetcher: () => fetchFinnhub(symbol, options.finnhubApiKey!, now) }] : []),
     { name: "Yahoo Finance RSS", fetcher: () => fetchRss({ name: "Yahoo Finance RSS", url: `https://finance.yahoo.com/rss/headline?s=${encodedSymbol}` }) },
@@ -104,7 +105,7 @@ export async function fetchRecentNews(symbol: string, options: { now?: number; f
       name: "Google News RSS",
       fetcher: () => fetchRss({
         name: "Google News RSS",
-        url: `https://news.google.com/rss/search?q=${encodeURIComponent(`${symbol} stock market`)}&hl=en-US&gl=US&ceid=US:en`,
+        url: `https://news.google.com/rss/search?q=${encodeURIComponent(googleSearchQuery)}&hl=en-US&gl=US&ceid=US:en`,
       }),
     },
   ];
