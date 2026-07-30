@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   // why.hiwd.com is a custom GitHub Pages domain, so assets are served at the root.
   root: "src",
+  envDir: "..",
   publicDir: "../public",
   base: "/",
   build: {
