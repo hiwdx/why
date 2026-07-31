@@ -33,6 +33,10 @@ function toPublicMacroSummary(summary: MacroSummary): MacroSummary {
   return { ...summary, raw_response: undefined };
 }
 
+function alertHistorySignature(alert: Pick<TriggeredAlert, "market" | "symbol" | "session" | "changePercent" | "triggeredAt">) {
+  return `${alert.market}_${alert.symbol}_${alert.triggeredAt.slice(0, 10)}_${alert.session}_${alert.changePercent.toFixed(1)}`;
+}
+
 type MacroMarket = "US" | "HK";
 type IndexConfig = { market: MacroMarket; ticker: string; newsTicker?: string; supportingTicker?: string; indexName: string };
 type IndexSnapshot = { changePercent: number; ticker: string; observedAt?: string; failed?: boolean };
@@ -233,7 +237,7 @@ async function runRadarSweep(env: Env): Promise<TriggeredAlert[]> {
         ? await generateDeepSeekAlert(env.DEEPSEEK_API_KEY, { symbol: quote.symbol, market: quote.market, changePercent, news: newsResult.items, newsContext: newsResult.context, blockedPeople, now })
         : createFallbackAiAlert(quote.symbol, quote.market, changePercent, quote.volume / quote.average30DayVolume, now, newsResult.items.length > 0);
       const alert: TriggeredAlert = {
-      id: `${quote.market}_${quote.symbol}_${now}`,
+      id: alertHistorySignature({ market: quote.market, symbol: quote.symbol, session: quote.session, changePercent, triggeredAt: now }),
       symbol: quote.symbol,
       market: quote.market,
       session: quote.session,
@@ -249,7 +253,10 @@ async function runRadarSweep(env: Env): Promise<TriggeredAlert[]> {
       const key = `STOCK_${quote.market}_${quote.symbol}`;
       const historyKey = `${key}_HISTORY`;
       const existingHistory = (await env.WHY_DATA.get<TriggeredAlert[]>(historyKey, "json")) ?? [];
-      const history = [alert, ...existingHistory.filter((item) => item.id !== alert.id)].slice(0, 20);
+      const history = [alert, ...existingHistory].filter((item, index, all) => {
+        const signature = alertHistorySignature(item);
+        return all.findIndex((candidate) => alertHistorySignature(candidate) === signature) === index;
+      }).slice(0, 20);
 
       await Promise.all([
         env.WHY_DATA.put(key, JSON.stringify(alert)),
