@@ -58,6 +58,7 @@ type YahooChartPayload = {
 type NasdaqQuotePayload = {
   data?: {
     primaryData?: { lastSalePrice?: string; volume?: string; marketStatus?: string };
+    secondaryData?: { lastSalePrice?: string; netChange?: string; percentageChange?: string; lastTradeTimestamp?: string };
     summaryData?: { PreviousClose?: { value?: string } };
   };
 };
@@ -137,9 +138,13 @@ async function fetchNasdaqUsQuote(symbol: string): Promise<MarketQuote | null> {
     const quote = await quoteResponse.json<NasdaqQuotePayload>();
     const summary = await summaryResponse.json<NasdaqQuotePayload>();
     const primary = quote.data?.primaryData;
-    const currentPrice = Number(primary?.lastSalePrice?.replace(/[$,]/g, ""));
-    const previousClose = Number(summary.data?.summaryData?.PreviousClose?.value?.replace(/[$,]/g, ""));
-    const currentVolume = Number(primary?.volume?.replace(/[,]/g, ""));
+    const secondary = quote.data?.secondaryData;
+    const marketStatus = primary?.marketStatus?.toLowerCase() ?? "";
+    const isPreMarket = marketStatus.includes("pre");
+    const primaryPrice = Number(primary?.lastSalePrice?.replace(/[$,]/g, ""));
+    const secondaryPrice = Number(secondary?.lastSalePrice?.replace(/[$,]/g, ""));
+    const secondaryChange = Number(secondary?.percentageChange?.replace(/[+%]/g, ""));
+    const summaryPreviousClose = Number(summary.data?.summaryData?.PreviousClose?.value?.replace(/[$,]/g, ""));
     const fromDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const toDate = new Date().toISOString().slice(0, 10);
     const historyResponse = await fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical?assetclass=stocks&fromdate=${fromDate}&todate=${toDate}&limit=30`, { headers });
@@ -147,8 +152,14 @@ async function fetchNasdaqUsQuote(symbol: string): Promise<MarketQuote | null> {
     const history = await historyResponse.json<NasdaqHistoryPayload>();
     const historicalVolumes = (history.data?.tradesTable?.rows ?? []).map((row) => Number(row.volume?.replace(/[,]/g, ""))).filter((value) => Number.isFinite(value) && value > 0);
     const average30DayVolume = historicalVolumes.slice(1).reduce((sum, value) => sum + value, 0) / Math.max(historicalVolumes.length - 1, 1);
+    // 盘前 primaryData 代表即时撮合价，secondaryData 代表最近完整交易日收盘。
+    // 异动雷达需要比较完整交易日的收盘涨跌幅，避免把盘前报价和错误前收混算。
+    const currentPrice = isPreMarket && Number.isFinite(secondaryPrice) && secondaryPrice > 0 ? secondaryPrice : primaryPrice;
+    const previousClose = isPreMarket && Number.isFinite(secondaryChange) && secondaryChange !== -100
+      ? currentPrice / (1 + secondaryChange / 100)
+      : summaryPreviousClose;
+    const currentVolume = isPreMarket ? Number(historicalVolumes[0]) : Number(primary?.volume?.replace(/[,]/g, ""));
     if (!Number.isFinite(currentPrice) || !Number.isFinite(previousClose) || previousClose <= 0 || !Number.isFinite(currentVolume) || !Number.isFinite(average30DayVolume) || average30DayVolume <= 0) throw new Error("Nasdaq quote payload was incomplete");
-    const marketStatus = primary?.marketStatus?.toLowerCase() ?? "";
     const session = marketStatus.includes("pre") ? "pre" : marketStatus.includes("after") || marketStatus.includes("post") ? "after" : "regular";
     return { symbol, market: "US", session, price: currentPrice, previousClose, volume: currentVolume, average30DayVolume };
   } catch (error) {
