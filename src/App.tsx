@@ -81,14 +81,17 @@ export function App() {
   const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(cachedView.macroSummary);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         const response = symbol
           ? await fetch(apiUrl(`/api/alert/${encodeURIComponent(symbol)}`))
           : await fetch(apiUrl("/api/latest"));
+        if (cancelled) return;
         if (response.status === 404) return setStatus("empty");
         if (!response.ok) throw new Error("Unable to load alert data");
         const payload = await response.json() as AlertResponse | LatestResponse;
+        if (cancelled) return;
         const nextAlert = symbol
           ? (payload as AlertResponse).alert ?? null
           : (payload as LatestResponse).alerts[0] ?? null;
@@ -97,6 +100,7 @@ export function App() {
           if (nextMacroSummary) {
             window.localStorage.setItem(macroCacheKey, JSON.stringify(nextMacroSummary));
             window.localStorage.setItem(latestCacheKey, JSON.stringify({ alert: null, history: [], macroSummary: nextMacroSummary } satisfies CachedView));
+            if (cancelled) return;
             setMacroSummary(nextMacroSummary);
             return setStatus("macro");
           }
@@ -105,6 +109,7 @@ export function App() {
 
         setAlert(nextAlert);
         const historyResponse = await fetch(apiUrl(`/api/history/${nextAlert.market}/${encodeURIComponent(nextAlert.symbol)}`));
+        if (cancelled) return;
         let nextHistory = [nextAlert];
         if (historyResponse.ok) {
           nextHistory = (await historyResponse.json() as HistoryResponse).history;
@@ -115,10 +120,15 @@ export function App() {
         if (!symbol) window.localStorage.setItem(latestCacheKey, JSON.stringify(cache));
         setStatus("ready");
       } catch {
-        if (!alert && !macroSummary) setStatus("error");
+        if (!cancelled && !alert && !macroSummary) setStatus("error");
       }
     }
     void load();
+    const refreshTimer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshTimer);
+    };
   }, [symbol]);
 
   return (
@@ -129,7 +139,7 @@ export function App() {
             <img src={`${import.meta.env.BASE_URL}hiwd-logo-white-green-dot-trimmed.png`} alt="hiwd" width="134" height="52" className="h-7 w-auto" />
             <span className="text-sm font-medium tracking-[-0.02em] text-white/65">why</span>
           </a>
-          <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">US · HK</span>
+          <span className="font-mono text-[11px] tracking-[0.12em] text-white/40">US · HK <span className="text-white/25">· 自动同步 60s</span></span>
         </header>
 
         <section className="flex items-end justify-between gap-6 py-8 sm:py-10">
