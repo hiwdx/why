@@ -92,6 +92,14 @@ async function fetchIndexSnapshot(config: IndexConfig): Promise<IndexSnapshot> {
 }
 
 async function fetchLiveUsQuote(symbol: string): Promise<MarketQuote | null> {
+  // Nasdaq 返回独立的盘前价、最近收盘价和完整交易日成交量；优先使用它，
+  // 避免 Yahoo 在财报跳空或盘前阶段返回错误的 chartPreviousClose。
+  const nasdaqQuote = await fetchNasdaqUsQuote(symbol);
+  if (nasdaqQuote) return nasdaqQuote;
+  return fetchYahooUsQuote(symbol);
+}
+
+async function fetchYahooUsQuote(symbol: string): Promise<MarketQuote | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=35d&interval=1d&events=div%2Csplits`;
   try {
     const response = await fetch(url, {
@@ -123,7 +131,7 @@ async function fetchLiveUsQuote(symbol: string): Promise<MarketQuote | null> {
     };
   } catch (error) {
     console.warn(`[Quote] ${symbol} 实时行情获取失败。`, error);
-    return fetchNasdaqUsQuote(symbol);
+    return null;
   }
 }
 
