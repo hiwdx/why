@@ -1,7 +1,7 @@
 import { createMacroErrorSummary, generateDeepSeekAlert, generateDeepSeekMacroSummary, type MacroSummary } from "../lib/deepseek";
 import { buildNewsContext, fetchRecentNews, type NewsFetchResult } from "../lib/news";
 import { MARKET_RULES } from "../config/rules";
-import { createFallbackAiAlert, createMockQuotes, getChangePercent, shouldTrigger, type TriggeredAlert } from "./domain/radar";
+import { createFallbackAiAlert, createMockQuotes, getChangePercent, shouldTrigger, type MarketQuote, type TriggeredAlert } from "./domain/radar";
 
 export interface Env {
   WHY_DATA: KVNamespace;
@@ -36,6 +36,28 @@ function toPublicMacroSummary(summary: MacroSummary): MacroSummary {
 type MacroMarket = "US" | "HK";
 type IndexConfig = { market: MacroMarket; ticker: string; newsTicker?: string; supportingTicker?: string; indexName: string };
 type IndexSnapshot = { changePercent: number; ticker: string; observedAt?: string; failed?: boolean };
+type YahooChartPayload = {
+  chart?: {
+    result?: Array<{
+      meta?: {
+        regularMarketPrice?: number;
+        regularMarketTime?: number;
+        regularMarketVolume?: number;
+        previousClose?: number;
+        chartPreviousClose?: number;
+        marketState?: string;
+      };
+      indicators?: { quote?: Array<{ volume?: Array<number | null> }> };
+    }>;
+  };
+};
+type NasdaqQuotePayload = {
+  data?: {
+    primaryData?: { lastSalePrice?: string; volume?: string; marketStatus?: string };
+    summaryData?: { PreviousClose?: { value?: string } };
+  };
+};
+type NasdaqHistoryPayload = { data?: { tradesTable?: { rows?: Array<{ volume?: string }> } } };
 
 const MACRO_INDICES: IndexConfig[] = [
   { market: "US", ticker: "^GSPC", newsTicker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500" },
@@ -61,6 +83,73 @@ async function fetchIndexSnapshot(config: IndexConfig): Promise<IndexSnapshot> {
   } catch (error) {
     console.warn(`[Macro] ${config.ticker} 行情读取失败。`, error);
     return { ticker: config.ticker, changePercent: 0, failed: true };
+  }
+}
+
+async function fetchLiveUsQuote(symbol: string): Promise<MarketQuote | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=35d&interval=1d&events=div%2Csplits`;
+  try {
+    const response = await fetch(url, {
+      headers: { "user-agent": "why.hiwd.com live radar/1.0", accept: "application/json" },
+    });
+    if (!response.ok) throw new Error(`Yahoo quote returned HTTP ${response.status}`);
+    const payload = await response.json<YahooChartPayload>();
+    const result = payload.chart?.result?.[0];
+    const meta = result?.meta;
+    const price = Number(meta?.regularMarketPrice);
+    const previousClose = Number(meta?.chartPreviousClose ?? meta?.previousClose);
+    const volumes = (result?.indicators?.quote?.[0]?.volume ?? []).map(Number).filter((value) => Number.isFinite(value) && value > 0);
+    const currentVolume = Number(meta?.regularMarketVolume ?? volumes.at(-1));
+    const baselineVolumes = volumes.slice(0, -1).slice(-30);
+    const average30DayVolume = baselineVolumes.reduce((sum, value) => sum + value, 0) / baselineVolumes.length;
+    if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose <= 0 || !Number.isFinite(currentVolume) || !Number.isFinite(average30DayVolume) || average30DayVolume <= 0) {
+      throw new Error("Yahoo quote payload was incomplete");
+    }
+    const marketState = meta?.marketState;
+    const session = marketState === "PRE" ? "pre" : marketState === "POST" ? "after" : "regular";
+    return {
+      symbol,
+      market: "US",
+      session,
+      price,
+      previousClose,
+      volume: currentVolume,
+      average30DayVolume,
+    };
+  } catch (error) {
+    console.warn(`[Quote] ${symbol} 实时行情获取失败。`, error);
+    return fetchNasdaqUsQuote(symbol);
+  }
+}
+
+async function fetchNasdaqUsQuote(symbol: string): Promise<MarketQuote | null> {
+  const headers = { "user-agent": "Mozilla/5.0 why.hiwd.com live radar/1.0", accept: "application/json, text/plain, */*" };
+  try {
+    const [quoteResponse, summaryResponse] = await Promise.all([
+      fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/info?assetclass=stocks`, { headers }),
+      fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/summary?assetclass=stocks`, { headers }),
+    ]);
+    if (!quoteResponse.ok || !summaryResponse.ok) throw new Error(`Nasdaq quote returned HTTP ${quoteResponse.status}/${summaryResponse.status}`);
+    const quote = await quoteResponse.json<NasdaqQuotePayload>();
+    const summary = await summaryResponse.json<NasdaqQuotePayload>();
+    const primary = quote.data?.primaryData;
+    const currentPrice = Number(primary?.lastSalePrice?.replace(/[$,]/g, ""));
+    const previousClose = Number(summary.data?.summaryData?.PreviousClose?.value?.replace(/[$,]/g, ""));
+    const currentVolume = Number(primary?.volume?.replace(/[,]/g, ""));
+    const fromDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const toDate = new Date().toISOString().slice(0, 10);
+    const historyResponse = await fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical?assetclass=stocks&fromdate=${fromDate}&todate=${toDate}&limit=30`, { headers });
+    if (!historyResponse.ok) throw new Error(`Nasdaq history returned HTTP ${historyResponse.status}`);
+    const history = await historyResponse.json<NasdaqHistoryPayload>();
+    const historicalVolumes = (history.data?.tradesTable?.rows ?? []).map((row) => Number(row.volume?.replace(/[,]/g, ""))).filter((value) => Number.isFinite(value) && value > 0);
+    const average30DayVolume = historicalVolumes.slice(1).reduce((sum, value) => sum + value, 0) / Math.max(historicalVolumes.length - 1, 1);
+    if (!Number.isFinite(currentPrice) || !Number.isFinite(previousClose) || previousClose <= 0 || !Number.isFinite(currentVolume) || !Number.isFinite(average30DayVolume) || average30DayVolume <= 0) throw new Error("Nasdaq quote payload was incomplete");
+    const marketStatus = primary?.marketStatus?.toLowerCase() ?? "";
+    const session = marketStatus.includes("pre") ? "pre" : marketStatus.includes("after") || marketStatus.includes("post") ? "after" : "regular";
+    return { symbol, market: "US", session, price: currentPrice, previousClose, volume: currentVolume, average30DayVolume };
+  } catch (error) {
+    console.warn(`[Quote] ${symbol} Nasdaq 实时行情获取失败。`, error);
+    return null;
   }
 }
 
@@ -124,11 +213,12 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
 
 async function runRadarSweep(env: Env): Promise<TriggeredAlert[]> {
   console.log("[Cron] 开始巡检美股池与港股池...");
-  // 下一阶段在此替换为 Yahoo Finance 或付费行情源。MVP 固定使用可重放的测试行情。
   const hotTickers = (env.HOT_TICKERS ?? "").split(",").map((ticker) => ticker.trim().toUpperCase()).filter(Boolean);
   const blockedPeople = (env.BLOCKED_PERSONS ?? "").split(",").map((name) => name.trim()).filter(Boolean);
   const usWatchlist = [...hotTickers, ...MARKET_RULES.US.watchlist];
-  const quotes = createMockQuotes(usWatchlist[0], env.MOCK_SCENARIO ?? "alert");
+  const quotes = env.MARKET_DATA_MODE === "live"
+    ? (await Promise.all(usWatchlist.map(fetchLiveUsQuote))).filter((quote): quote is MarketQuote => Boolean(quote))
+    : createMockQuotes(usWatchlist[0], env.MOCK_SCENARIO ?? "alert");
   const now = new Date().toISOString();
   const alerts: TriggeredAlert[] = [];
 
