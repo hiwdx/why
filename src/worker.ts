@@ -37,6 +37,13 @@ function alertHistorySignature(alert: Pick<TriggeredAlert, "market" | "symbol" |
   return `${alert.market}_${alert.symbol}_${alert.triggeredAt.slice(0, 10)}_${alert.session}_${alert.changePercent.toFixed(1)}`;
 }
 
+function dedupeAlertHistory(history: TriggeredAlert[]) {
+  return history.filter((item, index, all) => {
+    const signature = alertHistorySignature(item);
+    return all.findIndex((candidate) => alertHistorySignature(candidate) === signature) === index;
+  }).slice(0, 20);
+}
+
 type MacroMarket = "US" | "HK";
 type IndexConfig = { market: MacroMarket; ticker: string; newsTicker?: string; supportingTicker?: string; indexName: string };
 type IndexSnapshot = { changePercent: number; ticker: string; observedAt?: string; failed?: boolean };
@@ -272,10 +279,7 @@ async function runRadarSweep(env: Env): Promise<TriggeredAlert[]> {
       const key = `STOCK_${quote.market}_${quote.symbol}`;
       const historyKey = `${key}_HISTORY`;
       const existingHistory = (await env.WHY_DATA.get<TriggeredAlert[]>(historyKey, "json")) ?? [];
-      const history = [alert, ...existingHistory].filter((item, index, all) => {
-        const signature = alertHistorySignature(item);
-        return all.findIndex((candidate) => alertHistorySignature(candidate) === signature) === index;
-      }).slice(0, 20);
+      const history = dedupeAlertHistory([alert, ...existingHistory]);
 
       await Promise.all([
         env.WHY_DATA.put(key, JSON.stringify(alert)),
@@ -330,7 +334,7 @@ export default {
     if (request.method === "GET" && url.pathname.startsWith("/api/history/")) {
       const [market, symbol] = url.pathname.replace("/api/history/", "").split("/");
       if (!market || !symbol) return json({ error: "Expected /api/history/:market/:symbol" }, 400);
-      const history = (await env.WHY_DATA.get<TriggeredAlert[]>(`STOCK_${market.toUpperCase()}_${symbol.toUpperCase()}_HISTORY`, "json")) ?? [];
+      const history = dedupeAlertHistory((await env.WHY_DATA.get<TriggeredAlert[]>(`STOCK_${market.toUpperCase()}_${symbol.toUpperCase()}_HISTORY`, "json")) ?? []);
       return json({ history: history.map(toPublicAlert) });
     }
 

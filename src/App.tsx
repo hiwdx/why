@@ -50,15 +50,18 @@ function symbolFromPath() {
   return segment ? decodeURIComponent(segment).toUpperCase() : null;
 }
 
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+function formatTime(iso: string, market?: "US" | "HK") {
+  const timeZone = market === "US" ? "America/New_York" : market === "HK" ? "Asia/Hong_Kong" : undefined;
+  const zoneLabel = market === "US" ? "美东" : market === "HK" ? "香港" : "本地";
+  const value = new Intl.DateTimeFormat("zh-CN", { timeZone, month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
+  return `${value}（${zoneLabel}）`;
 }
 
 function formatDataTime(summary: MacroSummary) {
   const sourceTime = summary.data_timestamp ?? summary.timestamp;
   const age = Date.now() - Date.parse(sourceTime);
   const state = age > 4 * 60 * 60 * 1000 ? "上一交易日收盘" : "实时行情";
-  return `${state} · ${formatTime(sourceTime)}`;
+  return `${state} · ${formatTime(sourceTime, summary.market)}`;
 }
 
 function displayedReason(alert: TriggeredAlert) {
@@ -214,7 +217,7 @@ function WhyCard({ alert }: { alert: TriggeredAlert }) {
             <h2 className="font-mono text-3xl font-semibold tracking-[-0.05em] text-white">{alert.symbol}</h2>
             <span className="border border-white/10 px-2 py-1 font-mono text-[11px] text-white/50">{alert.market} / {sessionLabel[alert.session]}</span>
           </div>
-          <p className="mt-2 font-mono text-xs text-white/40">触发于 {formatTime(alert.triggeredAt)}</p>
+          <p className="mt-2 font-mono text-xs text-white/40">触发于 {formatTime(alert.triggeredAt, alert.market)}</p>
         </div>
         <div className={`border px-3 py-2 text-right font-mono ${movementClass}`}>
           <p className="text-xl font-semibold tracking-[-0.05em]">{alert.ai.change_percent}</p>
@@ -255,7 +258,7 @@ function Timeline({ symbol, history }: { symbol: string; history: TriggeredAlert
             {index !== history.length - 1 && <span className="absolute bottom-0 left-[5px] top-5 w-px bg-white/15" />}
             <div>
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <time className="font-mono text-[11px] text-white/40">{formatTime(event.triggeredAt)} / {sessionLabel[event.session]}</time>
+                <time className="font-mono text-[11px] text-white/40">{formatTime(event.triggeredAt, event.market)} / {sessionLabel[event.session]}</time>
                 <b className={`font-mono text-sm ${isUp ? "text-rose-200" : "text-emerald-200"}`}>{event.ai.change_percent}</b>
               </div>
               <p className="mt-2 text-sm leading-6 text-white/70">{displayedReason(event)}</p>
