@@ -12,17 +12,33 @@ const sessionLabel = { pre: "盘前", regular: "盘中", after: "盘后" };
 const apiOrigin = (import.meta.env.VITE_API_ORIGIN ?? "").replace(/\/$/, "");
 const apiUrl = (path: string) => `${apiOrigin}${path}`;
 const macroCacheKey = "why:last-macro-summary";
+const latestCacheKey = "why:last-view";
+const alertCacheKey = (symbol: string) => `why:alert:${symbol}`;
 
-function readCachedMacroSummary(symbol: string | null): MacroSummary | null {
-  if (symbol) return null;
+type CachedView = { alert: TriggeredAlert | null; history: TriggeredAlert[]; macroSummary: MacroSummary | null };
+
+function readJson<T>(key: string): T | null {
   try {
-    const cached = window.localStorage.getItem(macroCacheKey);
-    if (!cached) return null;
-    const value = JSON.parse(cached) as MacroSummary;
-    return value.type === "macro_summary" && (value.market === "US" || value.market === "HK") ? value : null;
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) as T : null;
   } catch {
     return null;
   }
+}
+
+function readCachedView(symbol: string | null): CachedView {
+  if (symbol) {
+    const cached = readJson<CachedView>(alertCacheKey(symbol));
+    return cached?.alert ? { alert: cached.alert, history: cached.history ?? [cached.alert], macroSummary: null } : { alert: null, history: [], macroSummary: null };
+  }
+  const cached = readJson<CachedView>(latestCacheKey);
+  return cached ? { alert: cached.alert ?? null, history: cached.history ?? [], macroSummary: cached.macroSummary ?? null } : { alert: null, history: [], macroSummary: null };
+}
+
+function readCachedMacroSummary(symbol: string | null): MacroSummary | null {
+  if (symbol) return null;
+  const value = readJson<MacroSummary>(macroCacheKey);
+  return value?.type === "macro_summary" && (value.market === "US" || value.market === "HK") ? value : null;
 }
 
 function symbolFromPath() {
@@ -52,11 +68,14 @@ function displayedReason(alert: TriggeredAlert) {
 
 export function App() {
   const symbol = useMemo(symbolFromPath, []);
-  const [cachedMacroSummary] = useState<MacroSummary | null>(() => readCachedMacroSummary(symbol));
-  const [status, setStatus] = useState<Status>(() => cachedMacroSummary ? "macro" : "loading");
-  const [alert, setAlert] = useState<TriggeredAlert | null>(null);
-  const [history, setHistory] = useState<TriggeredAlert[]>([]);
-  const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(cachedMacroSummary);
+  const [cachedView] = useState<CachedView>(() => {
+    const view = readCachedView(symbol);
+    return view.macroSummary ? view : { ...view, macroSummary: readCachedMacroSummary(symbol) };
+  });
+  const [status, setStatus] = useState<Status>(() => cachedView.alert ? "ready" : cachedView.macroSummary ? "macro" : "loading");
+  const [alert, setAlert] = useState<TriggeredAlert | null>(cachedView.alert);
+  const [history, setHistory] = useState<TriggeredAlert[]>(cachedView.history);
+  const [macroSummary, setMacroSummary] = useState<MacroSummary | null>(cachedView.macroSummary);
 
   useEffect(() => {
     async function load() {
@@ -74,6 +93,7 @@ export function App() {
           const nextMacroSummary = !symbol ? (payload as LatestResponse).macroSummaries?.find((summary) => summary.market === "US") ?? (payload as LatestResponse).macroSummaries?.[0] : null;
           if (nextMacroSummary) {
             window.localStorage.setItem(macroCacheKey, JSON.stringify(nextMacroSummary));
+            window.localStorage.setItem(latestCacheKey, JSON.stringify({ alert: null, history: [], macroSummary: nextMacroSummary } satisfies CachedView));
             setMacroSummary(nextMacroSummary);
             return setStatus("macro");
           }
@@ -82,14 +102,17 @@ export function App() {
 
         setAlert(nextAlert);
         const historyResponse = await fetch(apiUrl(`/api/history/${nextAlert.market}/${encodeURIComponent(nextAlert.symbol)}`));
+        let nextHistory = [nextAlert];
         if (historyResponse.ok) {
-          setHistory((await historyResponse.json() as HistoryResponse).history);
-        } else {
-          setHistory([nextAlert]);
+          nextHistory = (await historyResponse.json() as HistoryResponse).history;
         }
+        setHistory(nextHistory);
+        const cache = { alert: nextAlert, history: nextHistory, macroSummary: null } satisfies CachedView;
+        window.localStorage.setItem(alertCacheKey(nextAlert.symbol), JSON.stringify(cache));
+        if (!symbol) window.localStorage.setItem(latestCacheKey, JSON.stringify(cache));
         setStatus("ready");
       } catch {
-        if (!macroSummary) setStatus("error");
+        if (!alert && !macroSummary) setStatus("error");
       }
     }
     void load();
