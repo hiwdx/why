@@ -34,11 +34,11 @@ function toPublicMacroSummary(summary: MacroSummary): MacroSummary {
 }
 
 type MacroMarket = "US" | "HK";
-type IndexConfig = { market: MacroMarket; ticker: string; supportingTicker?: string; indexName: string };
+type IndexConfig = { market: MacroMarket; ticker: string; newsTicker?: string; supportingTicker?: string; indexName: string };
 type IndexSnapshot = { changePercent: number; ticker: string; failed?: boolean };
 
 const MACRO_INDICES: IndexConfig[] = [
-  { market: "US", ticker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500" },
+  { market: "US", ticker: "^GSPC", newsTicker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500" },
   { market: "HK", ticker: "^HSI", indexName: "恒生指数" },
 ];
 
@@ -86,7 +86,7 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
     await env.WHY_DATA.put(`MARKET_SUMMARY_${config.market}`, JSON.stringify(summary));
     return summary;
   }
-  const tickers = [config.ticker, config.supportingTicker].filter((ticker): ticker is string => Boolean(ticker));
+  const tickers = [config.newsTicker ?? config.ticker, config.supportingTicker].filter((ticker): ticker is string => Boolean(ticker));
   const macroCalendarQuery = config.market === "US"
     ? "US stock market upcoming CPI FOMC economic data earnings calendar"
     : "Hong Kong stock market upcoming economic data earnings calendar";
@@ -95,7 +95,7 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
       now: Date.parse(now), finnhubApiKey: env.FINNHUB_API_KEY, blockedPeople,
     })),
     // 为 next_catalyst 补充可验证的日历型资讯，不能仅靠指数/ETF 标题猜测。
-    fetchRecentNews(config.ticker, {
+    fetchRecentNews(config.newsTicker ?? config.ticker, {
       now: Date.parse(now), blockedPeople, googleSearchQuery: macroCalendarQuery,
     }),
   ]));
