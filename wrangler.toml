@@ -18,8 +18,8 @@ id = "724b9a38788c4a2b82fd513420070023"
 [vars]
 MARKET_DATA_MODE = "live"
 MOCK_SCENARIO = "quiet"
-# 短期热点以逗号分隔，例如 "TICKER_A,TICKER_B"；当前启用纳斯达克 ADR SKHY。
-HOT_TICKERS = "SKHY"
+# 短期热点以逗号分隔，例如 "TICKER_A,TICKER_B"；留空表示只使用基础监控池。
+HOT_TICKERS = ""
 
 [observability]
 enabled = true
