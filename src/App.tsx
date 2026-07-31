@@ -40,7 +40,9 @@ function formatTime(iso: string) {
 
 function formatDataTime(summary: MacroSummary) {
   const sourceTime = summary.data_timestamp ?? summary.timestamp;
-  return `数据截至 ${formatTime(sourceTime)}`;
+  const age = Date.now() - Date.parse(sourceTime);
+  const state = age > 4 * 60 * 60 * 1000 ? "上一交易日收盘" : "实时行情";
+  return `${state} · ${formatTime(sourceTime)}`;
 }
 
 function displayedReason(alert: TriggeredAlert) {
