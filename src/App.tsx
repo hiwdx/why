@@ -125,9 +125,14 @@ export function App() {
     }
     void load();
     const refreshTimer = window.setInterval(() => void load(), 60_000);
+    const refreshOnResume = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", refreshOnResume);
     return () => {
       cancelled = true;
       window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshOnResume);
     };
   }, [symbol]);
 
