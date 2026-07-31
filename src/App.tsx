@@ -38,6 +38,11 @@ function formatTime(iso: string) {
   return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
 
+function formatDataTime(summary: MacroSummary) {
+  const sourceTime = summary.data_timestamp ?? summary.timestamp;
+  return `数据截至 ${formatTime(sourceTime)}`;
+}
+
 function displayedReason(alert: TriggeredAlert) {
   const hidden = shouldHideRestrictedContent(`${alert.ai.why_one_liner}\n${alert.ai.key_factors.join("\n")}`);
   return alert.ai.error || hidden ? "当前资讯不足，暂不展示原因。" : alert.ai.why_one_liner;
@@ -137,7 +142,7 @@ function MacroSummaryCard({ summary }: { summary: MacroSummary }) {
         <div>
           <p className="font-mono text-[11px] tracking-[0.14em] text-zinc-500">MARKET CONTEXT · {summary.market}</p>
           <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">{summary.status_label}</h2>
-          <p className="mt-2 text-sm text-zinc-400">{summary.index_name} · {formatTime(summary.timestamp)}</p>
+          <p className="mt-2 text-sm text-zinc-400">{summary.index_name} · {formatDataTime(summary)}</p>
         </div>
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-right font-mono">
           <p className="text-xs text-zinc-500">{summary.index_name}</p>

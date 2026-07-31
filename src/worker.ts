@@ -35,7 +35,7 @@ function toPublicMacroSummary(summary: MacroSummary): MacroSummary {
 
 type MacroMarket = "US" | "HK";
 type IndexConfig = { market: MacroMarket; ticker: string; newsTicker?: string; supportingTicker?: string; indexName: string };
-type IndexSnapshot = { changePercent: number; ticker: string; failed?: boolean };
+type IndexSnapshot = { changePercent: number; ticker: string; observedAt?: string; failed?: boolean };
 
 const MACRO_INDICES: IndexConfig[] = [
   { market: "US", ticker: "^GSPC", newsTicker: "SPY", supportingTicker: "QQQ", indexName: "S&P 500" },
@@ -47,12 +47,17 @@ async function fetchIndexSnapshot(config: IndexConfig): Promise<IndexSnapshot> {
   try {
     const response = await fetch(url, { headers: { "user-agent": "why.hiwd.com macro radar/1.0", accept: "application/json" } });
     if (!response.ok) throw new Error(`Yahoo index quote returned HTTP ${response.status}`);
-    const payload = await response.json<{ chart?: { result?: Array<{ meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number } }> } }>();
+    const payload = await response.json<{ chart?: { result?: Array<{ meta?: { regularMarketPrice?: number; regularMarketTime?: number; previousClose?: number; chartPreviousClose?: number } }> } }>();
     const meta = payload.chart?.result?.[0]?.meta;
     const price = Number(meta?.regularMarketPrice);
     const previousClose = Number(meta?.chartPreviousClose ?? meta?.previousClose);
     if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose <= 0) throw new Error("Yahoo index quote payload was incomplete");
-    return { ticker: config.ticker, changePercent: ((price - previousClose) / previousClose) * 100 };
+    const observedAt = Number(meta?.regularMarketTime);
+    return {
+      ticker: config.ticker,
+      changePercent: ((price - previousClose) / previousClose) * 100,
+      observedAt: Number.isFinite(observedAt) ? new Date(observedAt * 1000).toISOString() : undefined,
+    };
   } catch (error) {
     console.warn(`[Macro] ${config.ticker} 行情读取失败。`, error);
     return { ticker: config.ticker, changePercent: 0, failed: true };
@@ -80,6 +85,7 @@ async function fetchMacroSummary(env: Env, config: IndexConfig, now: string, blo
     newsContext: "",
     blockedPeople,
     now,
+    dataTimestamp: snapshot.observedAt,
   } as const;
   if (snapshot.failed) {
     const summary = createMacroErrorSummary(baseInput, "market_data_unavailable");

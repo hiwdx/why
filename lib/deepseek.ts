@@ -29,6 +29,7 @@ export type MacroSummary = {
   macro_reason: string;
   next_catalyst: string;
   timestamp: string;
+  data_timestamp?: string;
   error?: "market_data_unavailable" | "news_unavailable" | "deepseek_unavailable" | "invalid_model_output" | "restricted_content" | "catalyst_unavailable";
   raw_response?: string;
 };
@@ -41,6 +42,7 @@ export type SummarizeInput = {
   newsContext: string;
   blockedPeople?: readonly string[];
   now: string;
+  dataTimestamp?: string;
 };
 
 export type MacroSummaryInput = {
@@ -50,6 +52,7 @@ export type MacroSummaryInput = {
   newsContext: string;
   blockedPeople?: readonly string[];
   now: string;
+  dataTimestamp?: string;
 };
 
 const systemPrompt = `你是 why.hiwd.com 的金融信息编辑。只根据新闻 Context 解释已触发的股票异动。
@@ -138,6 +141,7 @@ export function createMacroErrorSummary(
     macro_reason: "[信源获取失败，请稍后重试]",
     next_catalyst: "[信源获取失败，请稍后重试]",
     timestamp: input.now,
+    data_timestamp: input.dataTimestamp,
     error,
     raw_response: raw.slice(0, 1200),
   };
@@ -186,6 +190,7 @@ function parseMacroSummary(content: string | null, input: MacroSummaryInput): Ma
       macro_reason: value.macro_reason,
       next_catalyst: "暂无已验证的下一催化事件",
       timestamp: input.now,
+      data_timestamp: input.dataTimestamp,
       error: "catalyst_unavailable",
       raw_response: content.slice(0, 1200),
     };
@@ -200,6 +205,7 @@ function parseMacroSummary(content: string | null, input: MacroSummaryInput): Ma
     macro_reason: value.macro_reason,
     next_catalyst: value.next_catalyst,
     timestamp: input.now,
+    data_timestamp: input.dataTimestamp,
   };
 }
 
@@ -264,6 +270,7 @@ export async function generateDeepSeekMacroSummary(apiKey: string, input: MacroS
               macro_reason: "从新闻 Context 提取的具体宏观原因",
               next_catalyst: "从新闻 Context 提取的明确待发生事件",
               timestamp: input.now,
+              data_timestamp: input.dataTimestamp,
             },
             market_news_context_last_48h: input.newsContext,
           }),
